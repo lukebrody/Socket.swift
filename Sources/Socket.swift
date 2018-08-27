@@ -208,9 +208,9 @@ open class Socket {
 }
 
 extension Socket {
-    open class func tcpListening(port: Port, address: String? = nil, maxPendingConnection: Int32 = SOMAXCONN) throws -> Self {
+    open class func tcpListening(port: Port, family: Family, address: String? = nil, maxPendingConnection: Int32 = SOMAXCONN) throws -> Self {
         
-        let socket = try self.init(.inet)
+        let socket = try self.init(family)
         try socket.set(option: .reuseAddress, true)
         try socket.bind(port: port, address: address)
         try socket.listen(backlog: maxPendingConnection)
