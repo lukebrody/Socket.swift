@@ -11,7 +11,7 @@ import Foundation
 public typealias FileDescriptor = Int32
 public typealias Byte = UInt8
 public typealias Port = in_port_t
-public typealias SocketAddress = sockaddr
+public typealias SocketAddress = Data
 public typealias TimeValue = timeval
 
 open class Socket {
@@ -97,22 +97,24 @@ open class Socket {
         try ing { setsockopt(fileDescriptor, SOL_SOCKET, option.rawValue, &state, socklen_t(size)) }
     }
     
-    open func bind(port: Port, address: String? = nil) throws {
-        try bind(address: SocketAddress(port: port, address: address))
+    open func bind(family: Family, port: Port, address: String? = nil) throws {
+        try bind(address: SocketAddress(family: family, port: port, address: address))
     }
     
     open func bind(address: SocketAddress) throws {
-        var addr = address
-        try ing { OS.bind(fileDescriptor, &addr, socklen_t(MemoryLayout<SocketAddress>.size)) }
+        _ = try address.withUnsafeBytes {bytes in
+            try ing { OS.bind(fileDescriptor, bytes, socklen_t(address.count)) }
+        }
     }
     
-    open func connect(port: Port, address: String? = nil) throws {
-        try connect(address: SocketAddress(port: port, address: address))
+    open func connect(family: Family, port: Port, address: String? = nil) throws {
+        try connect(address: SocketAddress(family: family, port: port, address: address))
     }
     
     open func connect(address: SocketAddress) throws {
-        var addr = address
-        try ing { OS.connect(fileDescriptor, &addr, socklen_t(MemoryLayout<SocketAddress>.size)) }
+        _ = try address.withUnsafeBytes {bytes in
+            try ing { OS.connect(fileDescriptor, bytes, socklen_t(address.count)) }
+        }
     }
     
     open func listen(backlog: Int32 = SOMAXCONN) throws {
@@ -180,7 +182,7 @@ extension Socket {
         
         let socket = try self.init(family)
         try socket.set(option: .reuseAddress, true)
-        try socket.bind(port: port, address: address)
+        try socket.bind(family: family, port: port, address: address)
         try socket.listen(backlog: maxPendingConnection)
         
         return socket
@@ -195,21 +197,50 @@ extension Socket {
 }
 
 extension SocketAddress {
-    public init(port: Port, address: String? = nil) {
-        var addr = sockaddr_in() //no need to memset 0. Swift does it
-        #if !os(Linux)
+    public init(family: Socket.Family, port: Port, address: String? = nil) {
+        switch family {
+        case .inet:
+            var addr = sockaddr_in() //no need to memset 0. Swift does it
+            #if !os(Linux)
             addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.stride)
-        #endif
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = port.bigEndian
-        
-        if let address = address {
-            let r = inet_pton(AF_INET, address, &addr.sin_addr)
-            assert(r == 1, "\(address) is not converted.")
+            #endif
+            addr.sin_family = sa_family_t(AF_INET)
+            addr.sin_port = port.bigEndian
+            
+            if let address = address {
+                let r = inet_pton(AF_INET, address, &addr.sin_addr)
+                assert(r == 1, "\(address) is not converted.")
+            }
+            
+            self.init(bytes: &addr, count: MemoryLayout<sockaddr_in>.size)
+        case .inet6:
+            var addr = sockaddr_in6() //no need to memset 0. Swift does it
+            #if !os(Linux)
+            addr.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.stride)
+            #endif
+            addr.sin6_family = sa_family_t(AF_INET6)
+            addr.sin6_port = port.bigEndian
+            
+            if let address = address {
+                let r = inet_pton(AF_INET6, address, &addr.sin6_addr)
+                assert(r == 1, "\(address) is not converted.")
+            }
+            
+            self.init(bytes: &addr, count: MemoryLayout<sockaddr_in6>.size)
+        default:
+            fatalError()
+        }
+    }
+    
+    struct AddressLengthError: Swift.Error {}
+    
+    public func family() throws -> Socket.Family {
+        guard count >= MemoryLayout<sockaddr>.size else {
+            throw AddressLengthError()
         }
         
-        self = withUnsafePointer(to: &addr) {
-            UnsafePointer<SocketAddress>(OpaquePointer($0)).pointee
+        return withUnsafeBytes {
+            Socket.Family(rawValue: Int32(($0.pointee as sockaddr).sa_family))
         }
     }
 }

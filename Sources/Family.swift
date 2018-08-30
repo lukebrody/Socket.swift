@@ -9,7 +9,7 @@
 import Foundation //silently Glibc
 
 extension Socket {
-    public struct Family: RawRepresentable {
+    public struct Family: RawRepresentable, Equatable {
         public let rawValue: Int32
         public init(rawValue: Int32) { self.rawValue = rawValue }
         
