@@ -156,38 +156,6 @@ open class Socket {
         return try ing { rc } != 0
     }
     
-    
-    /// Resolves domain into connectable addresses.
-    ///
-    /// - Parameters:
-    ///   - host: The hostname to dns lookup.
-    ///   - port: The port for SocketAddress.
-    /// - Returns: An array of connectable addresses
-    /// - Throws: Domain name not resolved
-    open func addresses(for host: String, port: Port) throws -> [SocketAddress] {
-        var hints = addrinfo()
-        
-        //TODO: set correct values of current socket
-        hints.ai_family = Family.inet.rawValue
-        hints.ai_socktype = Type.stream.rawValue
-        hints.ai_protocol = Protocol.tcp.rawValue
-        
-        var addrs: UnsafeMutablePointer<addrinfo>?
-        if getaddrinfo(host, String(port), &hints, &addrs) != 0 {
-            // unable to resolve
-            throw Error(errno: 11) //TODO: fix this thing
-        }
-        defer { freeaddrinfo(addrs) }
-        
-        var result: [SocketAddress] = []
-        for addr in sequence(first: addrs!, next: { $0.pointee.ai_next }) {
-            result.append(addr.pointee.ai_addr.pointee)
-        }
-        assert(!result.isEmpty)
-        return result
-    }
-    
-    
     open func startTls(_ config: TLS.Configuration) throws {
         tls = try TLS(self.fileDescriptor, config)
         try tls?.handshake()
