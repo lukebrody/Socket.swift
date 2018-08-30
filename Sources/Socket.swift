@@ -46,6 +46,20 @@ open class Socket {
         let received = try ing { recv(fileDescriptor, buffer, size, 0) }
         return received
     }
+        
+    open func read(size: Int) throws -> Data? {
+        var result = Data(capacity: size)
+        let bytesRead = try self.read(&result, size: size)
+        assert(bytesRead == size || bytesRead == 0)
+        if bytesRead == 0 {
+            return nil
+        }
+        return result
+    }
+    
+    open func write(data: Data) throws {
+        try self.write(&data, size: data.count)
+    }
     
     /// Writes all `length` of the `buffer` into the socket by calling
     /// write(_:size:) in a loop.
