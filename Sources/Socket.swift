@@ -18,7 +18,7 @@ open class Socket {
     open let fileDescriptor: FileDescriptor
     open var tls: TLS?
     
-    required public init(with fileDescriptor: FileDescriptor) {
+    required public init(with fileDescriptor: FileDescriptor) throws {
         self.fileDescriptor = fileDescriptor
     }
     
@@ -58,7 +58,8 @@ open class Socket {
     }
     
     open func write(data: Data) throws {
-        try self.write(&data, size: data.count)
+        var data = data
+        try self.write(&data, length: data.count)
     }
     
     /// Writes all `length` of the `buffer` into the socket by calling
@@ -138,7 +139,7 @@ open class Socket {
     open func accept() throws -> Self {
         var addrlen: socklen_t = 0, addr = sockaddr()
         let client = try ing { OS.accept(fileDescriptor, &addr, &addrlen) }
-        return type(of: self).init(with: client)
+        return try type(of: self).init(with: client)
     }
     
     public struct WaitOption: OptionSet {
